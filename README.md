@@ -1,4 +1,4 @@
-# RAPORTY SYMULACJE KOMPUTEROWE
+# RAPORTY 
 W tym repozytorium znajdują się raporty z laboratorium z Symulacji komputerowych oraz Statystyki stosowanej
 
 ## WYKORZYSTYWANE NARZĘDZIA
