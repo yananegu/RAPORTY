@@ -1,0 +1,389 @@
+---
+date: "20231218"
+lang: pl
+title: Wykorzystanie poznanych metod dotyczących analizy zależności liniowej do wybranych danych rzeczywistych
+author:
+    - name: Jakub Kaczor
+      email: 262257@student.pwr.edu.pl
+    - name: Yana Negulescu
+      email: 268963@student.pwr.edu.pl
+
+format: 
+  pdf:
+    code-line-numbers: true
+    colorlinks: false
+    documentclass: mwart
+    latex-tinytex: false
+    number-sections: true
+    papersize: a4paper
+    pdf-engine: lualatex
+
+callout-appearance: simple
+date-format: long
+highlight-style: pygments
+suppress-bibliography: true
+echo: false
+warning: false
+---
+
+# Wstęp i opis danych {#sec-wstep}
+
+```{python}
+from IPython.display import Markdown
+import seaborn as sns
+import pandas as pd
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+import numpy as np
+import scipy
+import matplotlib.pyplot as plt
+import scipy.stats as stats
+
+np.random.seed(12345)
+```
+
+
+Analizowany zbiór danych zawiera informacje o samochodach produkowanych
+w USA, Europie i Japonii w latach 1970–1982. Wersja z której korzystają
+autorzy pochodzi
+z [repozytorium](https://github.com/mwaskom/seaborn-data/commit/2fae127e7dfdb4080e82396c47194c3acb22c86f)
+autorów pakietu do wizualizacji `seaborn` i za pomocą tego pakietu autorzy
+uzyskują do nich dostęp.
+
+```{python}
+#| tbl-cap: Obserwacje z brakującymi wartościami
+df = sns.load_dataset("mpg")
+number_of_observations = len(df)
+missing = df[df.isna().any(axis=1)]
+missing_columns = missing.columns[missing.isna().any()]
+
+missing[["origin", "model_year", "name"]]
+```
+
+
+Zmienna|Opis
+---|---
+mpg|średnia przebytych mil na galon paliwa
+cylinders|liczba cylindrów
+displacement|pojemność silnika
+horsepower|moc (w koniach mechanicznych)
+weight|masa pojazdu
+acceleration|przyspieszenie
+model_year|rok produkcji
+origin|kraj produkcji
+name|nazwa modelu
+
+: Zmienne w zbiorze danych wraz z opisem
+
+
+```{python}
+Markdown(f"""
+Wśród zbioru znaleziono kilka obserwacji brakujących, jest ich
+{len(missing)}, a brakuje w nich wartości dla kolumny
+`{list(missing_columns)[0]}`. Druga zasada dynamiki Newtona orzeka
+zależność pomiędzy masą, siłą i przyspieszeniem. Wobec tego autorzy
+spodziewają się ścisłej relacji pomiędzy masą pojazdu, przyspieszeniem,
+a jego mocą i w tym sprawozdaniu pochylą się nad uzupełnieniem brakujących
+danych poprzez predykcję ich wartości z użyciem modelu regresji liniowej.
+""")
+```
+
+Kolejnym interesującym autorów problemem jest wydajność pojazdu. W danych
+jest zmienna bezpośrednio z tym związana, jest to zmienna `mpg`. Potrzeba
+znaleźć minimalną liczbę zmiennych dobrze opisujących `mpg` w zależności
+liniowej. Pomysłem autorów jest, że to jak samochód jest w stanie daleko
+zajechać zależy od tego, jak ciężki jest, a---średnio---forma napędu nie ma
+większego znaczenia, co spróbują potwierdzić w analize reziduów modelu
+liniowego. 
+
+# Analiza jednowymiarowa
+
+Jak wspomniano w @sec-wstep, będziemy badać zależność $$\text {moc} \sim
+\text {przyspieszenie} \cdot \text {masa}.$$ Do tego potrzeba nowej
+zmiennej będącej iloczynem przyspieszenia i masy. Nazwiemy ją `force`
+(pol. siła).
+
+```{python}
+df = df.assign(force=df["acceleration"] * df["weight"])
+```
+
+Do analizy wspomnianych w @sec-wstep relacji będziemy potrzebowali
+zmiennych `acceleration`, `weight` oraz `mpg`. Jak okaże się
+w @sec-analiza-moc-masa-przyspieszenie, `acceleration` nie przyda się nam
+tak bardzo, więc dokładniej przyjrzymy się tylko `weight` i `mpg`.
+
+```{python}
+with_grouping_variable = df[["weight", "mpg"]].melt()
+grid = sns.FacetGrid(with_grouping_variable, col="variable", sharex=False)
+grid.map(sns.boxplot, "value", orient="v")
+```
+
+
+## Podstawowe statystyki dla zmiennej zależnej 'mpg'
+
+```{python}
+mean_mpg, odch_standardowe_mpg, minn_mpg, kwartyl25_mpg, kwartyl50_mpg, kwartyl75_mpg, maxx_mpg = df['mpg'].describe()[1:]
+var_mpg = odch_standardowe_mpg**2
+skewness_mpg = df['mpg'].skew()
+kurtosis_mpg = df['mpg'].kurtosis()
+przedzial1 = mean_mpg-odch_standardowe_mpg
+przedzial2 = mean_mpg + odch_standardowe_mpg
+
+Markdown(f"""
+Średnia próbkowa dla zmiennej `mpg` wynosi: {mean_mpg:.4f}. Nie znajduję się ona daleko od mediany, co jest widocznie na wykresie pudełkowym. To świadczy o małej skośności rozkładu.
+
+Odchylenie standardowe próbkowe wynosi: {odch_standardowe_mpg:.4f}, stąd wariancja wynosi {var_mpg:.4f}. To świadczy o tym że większość
+obserwacji jest z przedziału: {[15.6986, 31.3306]}.
+
+Mediana próbkowa wynosi: {kwartyl50_mpg:.2f}. Oraz kwartyli rzędu 25 i 75 wynoszą odpowiednio: {kwartyl25_mpg:.2f}, {kwartyl75_mpg:.2f}.
+
+Element minimalny oraz maksymalny: {minn_mpg:.2f}, {maxx_mpg:.2f}.
+
+Kurtoza próbkowa wynosi: {kurtosis_mpg:.4f}. Oznacza to, że rozkład ma płaski szczyt i mniej grubych ogonów w porównaniu z rozkładem normalnym.
+
+Skośność próbkowa wynosi: {skewness_mpg:.4f}. To oznacza, że rozkład jest prawostronnie skośny.
+
+Aby lepiej zobaczyć na ile rozkład jest podobny do rozkładu normalnego z odpowiednimi parametrami ($\mu = {mean_mpg:.4f}$, $\sigma = {odch_standardowe_mpg:.4f}$),
+narysujmy wykres porównujący dystrybuanty.
+""")
+```
+
+
+```{python}
+from statsmodels.distributions.empirical_distribution import ECDF
+
+dystrybemp=ECDF(df['mpg'])
+plt.figure(figsize=(13, 8))
+plt.plot(dystrybemp.x, dystrybemp.y, label="Dystrybuanta empiryczna 'mpg")
+
+x = np.linspace(stats.norm.ppf(0.03,loc = mean_mpg, scale=odch_standardowe_mpg), stats.norm.ppf(0.99,loc = mean_mpg,scale=odch_standardowe_mpg), 1000)
+plt.plot(x, stats.norm.cdf(x,loc = mean_mpg,scale=odch_standardowe_mpg),label=f"Dystrybuanta teoretyczna rozkładu normalnego dla $\sigma ={odch_standardowe_mpg}$")
+
+plt.xlabel('x')
+plt.ylabel('F(x)')
+plt.title("Dystrybuanta empiryczna oraz Dystrybuanta teoretyczna dla zmiennej zależnej 'mpg'")
+plt.legend()
+plt.show()
+```
+
+## Podstawowe statystyki dla zmiennej niezależnej 'weight'
+
+```{python}
+
+mean_weight, odch_standardowe_weight, minn_weight, kwartyl25_weight, kwartyl50_weight, kwartyl75_weight, maxx_weight = df['weight'].describe()[1:]
+var_weight = odch_standardowe_weight**2
+skewness_weight = df['weight'].skew()
+kurtosis_weight = df['weight'].kurtosis()
+
+Markdown(f"""
+Średnia próbkowa dla zmiennej `weight` wynosi: {mean_weight:.4f}. Nie znajduję się ona daleko od mediany, co jest widocznie na wykresie pudełkowym. To świadczy o małej skośności rozkładu.
+
+Odchylenie standardowe próbkowe wynosi: {odch_standardowe_weight:.4f}, stąd wariancja wynosi {var_weight:.4f}. To świadczy o tym że większość
+obserwacji są z przedziału: {[2123.5828, 3817.2664]}.
+
+Mediana próbkowa wynosi: {kwartyl50_weight:.2f}. Oraz kwartyli rzędu 25 i 75 wynoszą: {kwartyl25_weight:.2f}, {kwartyl75_weight:.2f}.
+
+Element minimalny oraz maksymalny: {minn_weight:.2f}, {maxx_weight:.2f}.
+
+Kurtoza próbkowa wynosi: {kurtosis_weight:.4f}. Oznacza to, że rozkład ma płaski szczyt i mniej grubych ogonów w porównaniu z rozkładem normalnym.
+
+Skośność próbkowa wynosi: {skewness_weight:.4f}. To oznacza, że rozkład jest prawostronnie skośny.
+
+Aby lepiej zobaczyć na ile rozkłąd jest podobny do rozkładu normalnego z odpowiednimi parametrami ($\mu = {mean_weight:.4f}$, $\sigma = {odch_standardowe_weight:.4f}$),
+narysujmy wykres dystrybuant dla porównania.
+""")
+```
+
+```{python}
+dystrybemp=ECDF(df['weight'])
+plt.figure(figsize=(13, 8))
+plt.plot(dystrybemp.x, dystrybemp.y, label="Dystrybuanta empiryczna 'weight")
+
+x = np.linspace(stats.norm.ppf(0.03,loc = mean_weight, scale=odch_standardowe_weight), stats.norm.ppf(0.99,loc = mean_weight,scale=odch_standardowe_weight), 1000)
+plt.plot(x, stats.norm.cdf(x,loc = mean_weight,scale=odch_standardowe_weight),label=f"Dystrybuanta teoretyczna rozkładu normalnego dla $\sigma ={odch_standardowe_weight}$")
+
+plt.xlabel('x')
+plt.ylabel('F(x)')
+plt.title("Dystrybuanta empiryczna oraz Dystrybuanta teoretyczna dla zmiennej zależnej 'mpg'")
+plt.legend()
+plt.show()
+```
+
+## Wydzielenie danych
+
+W dalszej części raportu będziemy dopasowywać model i testować jego
+poprawność. Aby ocenić, czy model nie jest przeuczony, wydzielimy podzbiór
+na którym model będzie dopasowywany i podzbiór na którym będziemy to
+dopasowanie testować, odpowiednio w proporcjach 80:20 w sposób losowy.
+
+```{python}
+train_df = df.sample(frac=0.8)
+test_df = df.drop(train_df.index)
+```
+
+# Analiza zależności
+
+
+## Moc, masa i przyspieszenie {#sec-analiza-moc-masa-przyspieszenie}
+
+Postulujemy zależność, zgodnie z klasycznym modelem regresji liniowej,
+$$
+\text {horsepower} = \beta_1 \text {force} + \beta_0 + \varepsilon,
+$$
+dla pewnych współczynników $\beta_0$, $\beta_1$ i zmiennej losowej
+$\varepsilon \sim \text {Normal}(0, \sigma^2)$ przy nieznanej wariancji
+$\sigma^2$.
+
+```{python}
+#| label: fig-horsepower-force-regression
+#| fig-cap: Regresja liniowa przy zmiennej objaśnianej `horsepower` i zmiennej objaśniającej `force`.
+sns.lmplot(data=df, x="force", y="horsepower")
+```
+
+Jak można zobaczyć na @fig-horsepower-force-regression, postulowany model
+nie pasuje. Jako że nieodpowiedniość jest widoczna gołym okiem, porzucamy
+dalszą analizę relacji na rzecz kolejnej.
+
+## Wydajność {#sec-wydajnosc}
+
+W podobny sposób co w @sec-analiza-moc-masa-przyspieszenie, postulujemy
+$$
+\text {mpg} = \beta_1 \text {weight} + \beta_0 + \varepsilon,
+$$
+dla pewnych współczynników $\beta_0$, $\beta_1$ i zmiennej losowej
+$\varepsilon \sim \text {Normal}(0, \sigma^2)$ przy nieznanej wariancji
+$\sigma^2$.
+
+
+## Estymacja punktowa oraz przedziałowa
+
+```{python}
+import statsmodels.api as sm
+Y = train_df['mpg']
+X = sm.add_constant(train_df['weight'])
+model = sm.OLS(Y,X)
+results = model.fit()
+
+B0, B1 = results.params
+
+B0_predzial_ufnosci = [results.conf_int()[0][0],results.conf_int()[1][0]]
+B1_predzial_ufnosci = [results.conf_int()[0][1],results.conf_int()[1][1]]
+
+Markdown(fr"""
+Wyestymowaliśmy parametry $\beta_0$ i $\beta_1$ które odpowiednio wynoszą {B0:.4f} i {B1:.4f}.
+
+
+Oraz obliczyliśmy przedział ufności: dla $\beta_0$ to {[44.3675,47.8959]}, a dla $\beta_1$---{[-0.0082, -0.0071]}
+""")
+```
+
+
+## Ocena poziomu zależności
+
+```{python}
+e = stats.norm.rvs(loc=0, scale=1)
+mpg_test = B1*test_df['weight']+B0 +e
+SST = np.sum((test_df['mpg'] - np.mean(test_df['mpg']))**2)
+SSE = np.sum((test_df['mpg'] - mpg_test)**2)
+SSR = np.sum((mpg_test - np.mean(test_df['mpg']))**2)
+r_square = SSR/SST
+
+Markdown(f"""
+Żeby ocenić poziom zależności policzyliśmy: 
+
+SST = {SST:.4f}, co wskazuje na dużą zmienność danych.
+
+SSE = {SSE:.4f}, co wskazuje, że istnieje pewna zmienność w danych, która nie jest wyjaśniona przez model.
+
+SSR = {SSR:.4f}, oznacza to że model w miare dobrze wyjaśnia zmienność danych.
+
+Współczynnik korelacji Pearsona $r^2$ = {r_square:.4f}. To oznacza, że około 65.09% zmienności zmiennej zależnej jest wyjaśnione przez model. Ta wartość sugeruje że model ma sensowną moc predykcyjną.
+""")
+
+```
+
+```{python}
+model = smf.ols("mpg ~ weight", train_df)
+fit = model.fit()
+```
+
+
+```{python}
+sns.lmplot(data=df, x="weight", y="mpg")
+```
+
+
+# Predykcja
+
+```{python}
+prediction = fit.predict(test_df)
+residuals = prediction - test_df["mpg"]
+mean_absolute_error = np.mean(residuals)
+mean_relative_error = np.mean(residuals / test_df["mpg"])
+
+Markdown(f"""
+Korzystając z modelu opisanego w @sec-wydajnosc, wykonamy predykcję na
+danych testowych i ocenę błedów. Rezultaty można zobaczyć na
+@fig-bledy. Średni błąd bezwzględny wyniósł {mean_absolute_error:.2f},
+natomiast błąd względny {100 * mean_relative_error:.2f}%.
+""")
+```
+
+
+
+```{python}
+#| fig-cap: Wartości rzeczywiste oraz prognozowane dla zmiennej `mpg`. Nie zauważa się wzorców, co może sugerować odchylenia spowodowane szumem.
+ax, p = plt.subplots()
+p.scatter(range(len(prediction)), test_df["mpg"], label="Rzeczywiste wartości")
+p.scatter(range(len(residuals)), prediction, color="orange", label="Predykcja")
+p.legend()
+p.set_ylabel("mpg")
+p.set_xlabel("Numer obserwacji")
+plt.show()
+```
+
+# Analiza reziduów
+
+W tym rozdziale sprawdzimy normalność reziduów modelu przedstowionego
+w @sec-wydajnosc. Spodziewamy się rozkładu normalnego.
+
+```{python}
+#| fig-cap: Estymator histogramowy reziduów oraz gęstość rozkładu normalnego o średniej i wariancji równych średniej i wariancji próbkowej reziduów.
+#| label: fig-bledy
+m = np.mean(residuals)
+s = np.std(residuals)
+N = scipy.stats.norm(m, s)
+left, right = N.interval(0.99)
+xs = np.linspace(left, right, 1000)
+p = sns.histplot(residuals, stat="density", label="Estymator histogramowy reziduów")
+p.plot(xs, N.pdf(xs), label="Gęstość rozkładu normalnego", color="orange")
+p.legend()
+p.set_ylabel("Prawdopodobieństwo")
+p.set_xlabel("x")
+plt.show()
+```
+
+```{python}
+test = scipy.stats.shapiro(residuals)
+Markdown(rf"""
+Średnia reziduów wynosi {m:,.2f}, natomiast odchylenie standardowe to
+{s:,.2f}. Oprócz tego, jako że średnia i wariancja nie są znane, autorzy
+przeprowadzili test normalności Shapiro-Wilka. Ustalono poziom istotności
+jako $\alpha = 0.05$. Wartość statystyki testowej tego testu to
+{test.statistic:,.2f} z p-wartością równą {test.pvalue:,.4f}, co nie
+stanowi podstaw do odrzucenia hipotezy, że rezidua faktycznie pochodzą
+z rozkładu normalnego.
+""")
+```
+
+# Podsumowanie
+
+W tym sprawozdaniu przyjrzano się zbiorowi danych `mpg` i rozważono głównie
+dwa aspekty oparte o modele regresji liniowej. Pierwszy, inspirowany
+fizycznym prawem okazał się niedobrze odwzorowywać rzeczywiste zależności
+w danych, natomiast drugi odwrotnie---był trafny. Opisano zmienne mające
+udział w modelach z użyciem podstawowych statystyk opisowych. Dopasowanie
+modelu sprawdzono z użyciem poznanych wskaźników, a jego poprawność
+dodatkowo potwierdzono przy analize reziduów. Całość została wykonana na
+danych treningowych, a proces oceny został przeprowadzony na danych
+testowych, co dodatkowo wzmacnia model o pewność, że nie jest przeuczony.
