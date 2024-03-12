@@ -1,0 +1,976 @@
+---
+title: "Sprawozdanie 2"
+format: pdf
+editor: visual
+author: Yana Negulescu
+editor_options: 
+  chunk_output_type: inline
+---
+
+## Spis treści:
+
+1.  Wstęp
+2.  Opis testów:
+    -   Test t-Studenta przy założeniu $\sigma_1 = \sigma_2$
+
+    -   Testu t-Welcha
+
+    -   Testu sumy rang Wilcoxona
+3.  Próba wyboru testu jednostajnie najmocniejszego spośród wybranych:
+    -   Zadanie 1
+
+    -   Zadanie 2
+
+    -   Zadanie 3
+4.  Próba wybora testu jednostajnie najmocniejszego:
+    -   Test t-Studenta
+
+    -   Testu t-Welcha
+
+    -   Testu sumy rang Wilcoxona
+5.  Wnioski
+
+## 1. Wstęp
+
+Celem niniejszego raportu jest analiza i weryfikacja hipotez dotyczących równości średnich dwóch populacji, przy zastosowaniu różnych testów statystycznych na poziomie istotności $\alpha = 0.05$ . Hipotezy badane w tym kontekście to hipoteza zerowa $H_0: \mu_1 = \mu_2$, przeciwstawiona hipotezie alternatywnej $H_1: \mu_1 \neq \mu_2$ . W raporcie przyjęto założenie o równości lub różności wariancji w populacjach, co doprowadziło do zastosowania testu t-Studenta, testu t-Welcha oraz testu sumy rang Wilcoxona.
+
+Idea testowania opiera się na ocenie, czy obserwowane różnice między grupami są statystycznie znaczące, czy mogą być wynikiem przypadkowej zmienności. Kluczowym aspektem analizy jest funkcja mocy testu, która informuje o prawdopodobieństwie odrzucenia hipotezy zerowej, gdy jest ona fałszywa. Funkcja mocy pozwala ocenić skuteczność testu w identyfikowaniu istotnych różnic.
+
+Test jednostajnie najmocniejszy to taki, który dla danego poziomu istotności $\alpha$ maksymalizuje moc testu dla wszystkich możliwych wartości parametru określającego hipotezę alternatywną, zapewniając najwyższą skuteczność w odrzucaniu fałszywej hipotezy zerowej.
+
+Metoda Monte Carlo, wykorzystana do symulacji w niniejszym raporcie, opiera się na generowaniu dużych próbek danych zgodnie z określonymi rozkładami prawdopodobieństwa, aby numerycznie oszacować właściwości statystyczne testów, w tym funkcję mocy. Jest to narzędzie umożliwiające zrozumienie zachowania testów statystycznych w różnych scenariuszach, co jest kluczowe dla właściwej interpretacji wyników analizy statystycznej.
+
+## 2. Opis poszczególnych testów
+
+### 2.1 Test t-Studenta przy założeniu $\sigma_1 = \sigma_2$
+
+#### Opis testu:
+
+Test t-Studenta dla niezależnych prób stosuje się do porównania średnich z dwóch grup. Założeniem jest równość wariancji w obu grupach.
+
+-   **Statystyka testowa:** $$t = \dfrac{\bar{x}_1 - \bar{x}_2}{s_p \sqrt{\frac{1}{n+1} + \frac{1}{n_2}}}$$
+
+    gdzie $s_p^2 = \frac{(n_1-1)s_1^2 +(n_2-1)s_2^2}{n_1+n_2-2}$ to skorygowana wariancja, $s_1^2, s_2^2$ to wariancje próbek, a $n_1, n_2$ to rozmiary próbek.
+
+-   **Rozkład statystyki testowej przy H0:**
+
+    Rozkład t-Studenta z $n_1+n_2-2$ stopniami swobody.
+
+-   **Obszar odrzucenia:**
+
+    Dla testu dwustronnego, odrzucamy H0 jeśli $|t|>t_{\alpha/2, n_1+n_2-2}$ , gdzie $t_{\alpha/2, n_1+n_2-2}$ jest wartością krytyczną rozkładu t-Studenta.
+
+#### Przykładowe wywołanie testu:
+
+```{r}
+# Generowanie danych symulacyjnych
+set.seed(123) # Dla reprodukowalności
+n1 <- 100
+n2 <- 200
+mu1 <- 1
+mu2 <- 2
+sigma <- 2 
+
+data1 <- rnorm(n1, mean = mu1, sd = sigma)
+data2 <- rnorm(n2, mean = mu2, sd = sigma)
+
+# Wykonanie testu t-Studenta
+test_result <- t.test(data1, data2, var.equal = TRUE)
+
+# Wypisanie wyników
+test_result
+```
+
+Na podstawie przedstawionych wyników testu t-Studenta dla dwóch prób:
+
+Statystyka testowa: $t = -3.589$
+
+Stopnie swobody: $df = 289$
+
+p-wartość: $p = 0.000388$
+
+Przyjmując poziom istotności $\alpha = 0.05$ , p-wartość jest znacznie mniejsza niż $\alpha$ , co oznacza, że odrzucamy hipotezę zerową. Wynik wskazuje na istotną statystycznie różnicę między średnimi obu grup. Przedział ufności $[-1.2883817 -0.3758313]$ dla różnicy średnich nie obejmuje zera, co dodatkowo potwierdza znaczącą różnicę.
+
+#### Oszacowanie funkcji mocy:
+
+```{r}
+library(ggplot2)
+
+mu_diffs <- seq(-2, 2, by = 0.1)
+alpha <- 0.05
+n_simulations <- 1000
+powers <- numeric(length(mu_diffs))
+
+# Symulacja
+for (i in seq_along(mu_diffs)) {
+  mu2 <- mu1 + mu_diffs[i]
+  rejections <- 0
+  
+  for (j in 1:n_simulations) {
+    sample1 <- rnorm(n1, mu1, sigma)
+    sample2 <- rnorm(n2, mu2, sigma)
+    t_test <- t.test(sample1, sample2, var.equal = TRUE)
+    
+    if (t_test$p.value < alpha) {
+      rejections <- rejections + 1
+    }
+  }
+  
+  powers[i] <- rejections / n_simulations
+}
+
+# Tworzenie danych dla wykresu
+data_for_plot <- data.frame(mu_diff = mu_diffs, power = powers)
+
+# Tworzenie wykresu
+ggplot(data_for_plot, aes(x = mu_diff, y = power)) +
+  geom_line(color = "blue") +
+  geom_hline(yintercept = alpha, linetype="dashed", color = "red") +
+  labs(title = "Funkcja mocy testu t w zależności od różnicy średnich mu2 - mu1",
+       x = "Różnica średnich mu2 - mu1",
+       y = "Moc testu") +
+  theme_minimal()
+
+```
+
+### 2.2 Test t-Welcha
+
+#### Opis testu:
+
+Test t-Welcha jest modyfikacją testu t-Studenta, który nie zakłada równości wariancji próbek.
+
+-   **Statystyka testowa:**
+
+    $$
+    t = \frac{\bar{x}_1 - \bar{x}_2}{\sqrt{\frac{s_1^2}{n_1}+\frac{s_2^2}{n_2}}}
+    $$
+
+-   **Rozkład statystyki testowej przy H0:** Rozkład t-Studenta, lecz stopnie swobody są obliczane za pomocą wzoru Welcha-Satterthwaite'a:\
+    $$v \approx \frac{(\frac{s_1^2}{n_1}+\frac{s_2^2}{n_1})^2}{n_2-1}$$
+
+-   **Obszar odrzucenia:** Analogicznie do testu t-Studenta, ale z uwzględnieniem obliczonych stopni swobody.
+
+#### Przykładowe wywołanie testu:
+
+```{r}
+# Parametry prób
+mu1 <- 1
+mu2 <- 2  
+sigma <- 2
+n1 <- 100
+n2 <- 200
+
+# Generowanie danych
+set.seed(123)  # Dla reprodukowalności wyników
+data1 <- rnorm(n1, mean = mu1, sd = sigma)
+data2 <- rnorm(n2, mean = mu2, sd = sigma)
+
+# Wykonanie testu t-Welcha
+test_result <- t.test(data1, data2, var.equal = FALSE)
+
+# Wyświetlenie wyników
+test_result
+
+```
+
+Na podstawie przedstawionych wyników testu t-Studenta dla dwóch prób:
+
+Statystyka testowa: $t = -3.6535$
+
+Stopnie swobody: $df = 207.8$
+
+p-wartość: $p = 0.0003275$
+
+Przyjmując poziom istotności $\alpha = 0.05$ , p-wartość jest znacznie mniejsza niż $\alpha$ , co oznacza, że odrzucamy hipotezę zerową. Wynik wskazuje na istotną statystycznie różnicę między średnimi obu grup. Przedział ufności $[-1.180812 -3831032]$ dla różnicy średnich nie obejmuje zera, co dodatkowo potwierdza znaczącą różnicę.
+
+#### Oszacowanie funkcji mocy:
+
+```{r}
+
+mu_diffs <- seq(-2, 2, by = 0.1)
+alpha <- 0.05
+n_simulations <- 1000
+powers <- numeric(length(mu_diffs))
+
+for (i in seq_along(mu_diffs)) {
+  mu2 <- mu1 + mu_diffs[i]
+  rejections <- 0
+  
+  for (j in 1:n_simulations) {
+    sample1 <- rnorm(n1, mean = mu1, sd = sigma)
+    sample2 <- rnorm(n2, mean = mu2, sd = sigma)
+    
+    # Test t-Welcha
+    t_test <- t.test(sample1, sample2, var.equal = FALSE)
+    
+    if (t_test$p.value < alpha) {
+      rejections <- rejections + 1
+    }
+  }
+  
+  powers[i] <- rejections / n_simulations
+}
+
+# Tworzenie danych dla wykresu
+data_for_plot <- data.frame(mu_diff = mu_diffs, power = powers)
+
+# Tworzenie wykresu
+ggplot(data_for_plot, aes(x = mu_diff, y = power)) +
+  geom_line(color = "blue") +
+  geom_hline(yintercept = alpha, linetype="dashed", color = "red") +
+  labs(title = "Funkcja mocy testu t-Welcha  w zależności od różnicy średnich mu2 - mu1",
+       x = "Różnica średnich mu2 - mu1",
+       y = "Moc testu") +
+  theme_minimal()
+
+```
+
+### 2.3 Test sumy rang Wilcoxona
+
+#### Opis testu:
+
+Test sumy rang Wilcoxona jest nieparametrycznym testem używanym do porównania dwóch niezależnych prób.
+
+-   **Statystyka testowa:** Rangi są przypisywane wszystkim obserwacjom od najmniejszej do największej, a następnie sumowane dla każdej z grup. Statystyka testowa U jest mniejsza z dwóch sum rang.
+
+    $$
+    U = R_1 -\frac{n_1(n_1+1)}{2}
+    $$
+
+    gdzie $R_1$ to suma rang dla pierwszej próbki, a $n_1$ to liczba obserwacji w tej próbce.
+
+-   **Rozkład statystyki testowej przy H0:** Dla dużych prób rozkład U może być przybliżony przez rozkład normalny z odpowiednią średnią i wariancją.
+
+    Średnia i wariancja statystyki U, które są używane do jej normalizacji, gdy próbki są duże, są obliczane jako: $$\mu_U = \frac{n_1n_2}{2}\quad\text{oraz}\quad \sigma_U^2 = \frac{n_1n_2(n_1+n_2+1)}{12}$$
+
+-   **Obszar odrzucenia:** Dla testu dwustronnego, odrzucamy H0 jeśli wartość U jest znacznie mniejsza lub większa od wartości oczekiwanej pod hipotezą zerową.
+
+Przy dużych rozmiarach prób (U) może być przybliżone przez rozkład normalny, co pozwala na wykorzystanie standardowych metod statystycznych do oceny znaczenia.
+
+#### Przykładowe wywołanie testu:
+
+```{r}
+mu1 <- 1
+mu2 <- 2 
+sigma <- 2
+n1 <- 100
+n2 <- 200
+
+# Generowanie danych
+set.seed(123)  # Dla reprodukowalności wyników
+data1 <- rnorm(n1, mean = mu1, sd = sigma)
+data2 <- rnorm(n2, mean = mu2, sd = sigma)
+
+# Wykonanie testu sumy rang Wilcoxona
+test_result <- wilcox.test(data1, data2)
+
+# Wyświetlenie wyników
+test_result
+
+```
+
+-   Statystyka testowa W: 7679
+-   Wartość p: 0.001052
+-   Hipoteza alternatywna: prawdziwa różnica lokalizacji nie jest równa 0
+
+Hipoteza zerowa testu Wilcoxona mówi, że mediany dwóch porównywanych grup są równe. Hipoteza alternatywna sugeruje, że istnieje różnica w lokalizacji rozkładów tych dwóch grup. p-wartość jest wyznacznikiem siły przeciwko hipotezie zerowej. Przy standardowym poziomie istotności $\alpha = 0.05$, p-wartość jest znacznie mniejsza od $\alpha$, co oznacza, że odrzucamy hipotezę zerową na korzyść hipotezy alternatywnej. Oznacza to, że istnieją statystycznie istotne dowody sugerujące różnicę w medianach pomiędzy dwiema grupami.
+
+#### Oszacowanie funkcji mocy:
+
+```{r}
+
+mu_diffs <- seq(-2, 2, by = 0.1)
+alpha <- 0.05
+n_simulations <- 1000
+powers <- numeric(length(mu_diffs))
+
+for (i in seq_along(mu_diffs)) {
+  mu2 <- mu1 + mu_diffs[i]
+  rejections <- 0
+  
+  for (j in 1:n_simulations) {
+    sample1 <- rnorm(n1, mean = mu1, sd = sigma)
+    sample2 <- rnorm(n2, mean = mu2, sd = sigma)
+    
+    # Test Wilcoxona
+    wilcox_test <- wilcox.test(sample1, sample2)
+    
+    if (wilcox_test$p.value < alpha) {
+      rejections <- rejections + 1
+    }
+  }
+  
+  powers[i] <- rejections / n_simulations
+}
+
+# Tworzenie wykresu
+
+data_for_plot <- data.frame(mu_diff = mu_diffs, power = powers)
+
+# Tworzenie wykresu
+ggplot(data_for_plot, aes(x = mu_diff, y = power)) +
+  geom_line(color = "blue") +
+  geom_hline(yintercept = alpha, linetype="dashed", color = "red") +
+  labs(title = "Funkcja mocy testu sumy rang Wilcoxona  w zależności od różnicy średnich mu2 - mu1",
+       x = "Różnica średnich mu2 - mu1",
+       y = "Moc testu") +
+  theme_minimal()
+
+
+```
+
+## 3. Próba wyboru testa jednostajnie najmocniejszego
+
+### Zadanie 1
+
+Rozważmy próbę $(X_1, ..., X_{100})$ z rozkładu normalnego $\mathcal{N} \sim (\mu_1, 2^2)$ oraz drugą próbę $(Y_1, ..., Y_{200})$ z rozkładu normalnego $\mathcal{N} \sim (\mu_2, 2^2)$ . Korzystając z symulacji Monte Carlo wykonamy wykres funkcji mocy w zależności od $\mu_2 - \mu_1$ na przedziale $(-2,2)$ dla wszystkich trzech testów.
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r}
+# Pakiety
+
+library(gridExtra)
+
+# Parametry
+mu1 <- 1
+sigma <- 2
+n1 <- 100
+n2 <- 200
+mu_diffs <- seq(-2, 2, length.out = 100)
+alpha <- 0.05
+n_simulations <- 1000
+
+# Funkcje do przeprowadzania testów i obliczania mocy
+power_calculation <- function(test_function) {
+  sapply(mu_diffs, function(mu_diff) {
+    rejections <- replicate(n_simulations, {
+      sample1 <- rnorm(n1, mean = mu1, sd = sigma)
+      sample2 <- rnorm(n2, mean = mu2 + mu_diff, sd = sigma)
+      test_result <- test_function(sample1, sample2)
+      test_result$p.value < alpha
+    })
+    mean(rejections)
+  })
+}
+
+# Definicje funkcji testów
+test_t_student <- function(x, y) t.test(x, y, var.equal = TRUE)
+test_t_welch <- function(x, y) t.test(x, y, var.equal = FALSE)
+test_wilcoxon <- function(x, y) wilcox.test(x, y)
+
+# Obliczanie mocy dla każdego testu
+power_t_student <- power_calculation(test_t_student)
+power_t_welch <- power_calculation(test_t_welch)
+power_wilcoxon <- power_calculation(test_wilcoxon)
+
+# Tworzenie wykresów
+plot_power <- function(power, title) {
+  qplot(mu_diffs, power, geom = 'line') + 
+    labs(title = title, x = expression(mu[2] - mu[1]), y = 'Power') + 
+    theme_minimal()
+}
+
+plots <- list(
+  plot_power(power_t_student, 'Test t-Studenta'),
+  plot_power(power_t_welch, 'Test t-Welcha'),
+  plot_power(power_wilcoxon, 'Test Wilcoxona')
+)
+
+# Wstawianie wykresów do tabeli
+table_plot <- grid.arrange(grobs = plots, nrow = 1)
+
+# Narysowanie funkcji mocy testów na jednym wykresie
+combined_plot <- ggplot() + 
+  geom_line(aes(mu_diffs, power_t_student, colour = 'Test t-Studenta')) +
+  geom_line(aes(mu_diffs, power_t_welch, colour = 'Test t-Welcha')) +
+  geom_line(aes(mu_diffs, power_wilcoxon, colour = 'Test Wilcoxona')) +
+  labs(x = expression(mu[2] - mu[1]), y = 'Power') +
+  labs(title = "Funkcja mocy testu") +
+  scale_colour_manual(values = c('blue', 'red', 'green')) +
+  theme_minimal()
+
+
+
+```
+
+```{r}
+library(ggplot2)
+
+# Ustawienia początkowe
+set.seed(123) # Dla reprodukowalności wyników
+mu1 <- 1
+sigma <- 2
+n1 <- 100
+n2 <- 200
+mu_diffs <- seq(-2, 2, length.out = 100)
+alpha <- 0.05
+n_simulations <- 1000
+
+# Funkcja do przeprowadzenia symulacji Monte Carlo dla danego testu
+simulate_power <- function(test_func, mu_diffs, n1, n2, mu1, mu2, sigma, alpha, n_simulations) {
+  powers <- sapply(mu_diffs, function(mu_diff) {
+    p_values <- replicate(n_simulations, {
+      sample1 <- rnorm(n1, mu1, sigma)
+      sample2 <- rnorm(n2, mu1 + mu_diff, sigma)
+      test_result <- test_func(sample1, sample2)
+      test_result$p.value
+    })
+    mean(p_values < alpha)
+  })
+  return(powers)
+}
+
+# Symulacja dla testu t-Studenta
+powers_t <- simulate_power(function(x, y) t.test(x, y, var.equal = TRUE),
+                           mu_diffs, n1, n2, mu1,mu1, sigma, alpha, n_simulations)
+
+# Symulacja dla testu t-Welcha
+powers_welch <- simulate_power(function(x, y) t.test(x, y, var.equal = FALSE),
+                               mu_diffs, n1, n2, mu1,mu1, sigma, alpha, n_simulations)
+
+# Symulacja dla testu Wilcoxona
+powers_wilcox <- simulate_power(function(x, y) wilcox.test(x, y),
+                                mu_diffs, n1, n2, mu1,mu1, sigma, alpha, n_simulations)
+
+# Przygotowanie danych do rysowania
+data <- data.frame(
+  mu_diff = rep(mu_diffs, 3),
+  power = c(powers_t, powers_welch, powers_wilcox),
+  test = factor(rep(c('Test t-Studenta', 'Test t-Welcha', 'Test Wilcoxona'), each = length(mu_diffs)))
+)
+
+# Rysowanie wykresu
+ggplot(data, aes(x = mu_diff, y = power, color = test)) +
+  geom_line() +
+  theme_minimal() +
+  labs(x = expression(mu[2] - mu[1]), y = 'Moc testu', title = 'Funkcje mocy testów statystycznych', color = 'Test') +
+  scale_color_manual(values = c('blue', 'red', 'green'))
+
+
+```
+
+Podobieństwo funkcji mocy: Funkcje mocy dla testu t-Studenta, testu t-Welcha i testu Wilcoxona są bardzo zbliżone na całym przedstawionym zakresie różnicy średnich. Oznacza to, że w kontekście tych symulacji wszystkie trzy testy mają podobną zdolność do wykrywania różnicy między średnimi populacji.
+
+Brak jednoznacznie najmocniejszego testu: Na podstawie wykresu nie można wskazać testu, który byłby jednostajnie najmocniejszy (czyli mający największą moc testu we wszystkich punktach zakresu) dla każdej wartości różnicy średnich. Wszystkie trzy testy wykazują podobne właściwości w zakresie mocy, szczególnie w obszarach, gdzie różnica średnich jest bliska 0.
+
+Moc testów przy braku różnicy średnich: Zauważamy, że gdy różnica średnich jest równa 0 $(\mu_2 - \mu_1 = 0)$ , moc wszystkich testów jest najniższa. Jest to oczekiwane, ponieważ przy braku rzeczywistej różnicy między grupami, testy powinny rzadziej doprowadzać do odrzucenia hipotezy zerowej.
+
+Moc testów przy istotnej różnicy średnich: Gdy różnica średnich zwiększa się (zarówno w kierunku dodatnim, jak i ujemnym), moc testów wzrasta, zbliżając się do 1. Oznacza to, że testy są coraz bardziej skuteczne w wykrywaniu istotnych różnic między średnimi.
+
+W kontekście danych symulacyjnych i przyjętych założeń, żaden z testów nie wykazuje się jako jednostajnie najmocniejszy we wszystkich rozważanych scenariuszach. Wszystkie trzy testy mają podobną moc w wykrywaniu istotnych różnic średnich, z tendencją do zwiększania mocy w miarę wzrostu bezwzględnej wartości różnicy średnich.
+
+### Zadanie 2
+
+Rozważmy próbę $(X_1, ..., X_{100})$ z rozkładu normalnego $\mathcal{N} \sim (\mu_1, 2^2)$ oraz drugą próbę $(Y_1, ..., Y_{200})$ z rozkładu normalnego $\mathcal{N} \sim (\mu_2, 4^2)$ . Wykonajmy wykres funkcji mocy na przedziale $(-5,5)$ .
+
+```{r}
+# Pakiety
+
+library(gridExtra)
+
+# Parametry
+mu1 <- 1
+sigma1 <- 2
+sigma2 <- 4
+n1 <- 100
+n2 <- 200
+mu_diffs <- seq(-5, 5, length.out = 200)
+alpha <- 0.05
+n_simulations <- 1000
+
+# Funkcje do przeprowadzania testów i obliczania mocy
+power_calculation <- function(test_function) {
+  sapply(mu_diffs, function(mu_diff) {
+    rejections <- replicate(n_simulations, {
+      sample1 <- rnorm(n1, mean = mu1, sd = sigma1)
+      sample2 <- rnorm(n2, mean = mu1 + mu_diff, sd = sigma2)
+      test_result <- test_function(sample1, sample2)
+      test_result$p.value < alpha
+    })
+    mean(rejections)
+  })
+}
+
+# Definicje funkcji testów
+test_t_student <- function(x, y) t.test(x, y, var.equal = TRUE)
+test_t_welch <- function(x, y) t.test(x, y, var.equal = FALSE)
+test_wilcoxon <- function(x, y) wilcox.test(x, y)
+
+# Obliczanie mocy dla każdego testu
+power_t_student <- power_calculation(test_t_student)
+power_t_welch <- power_calculation(test_t_welch)
+power_wilcoxon <- power_calculation(test_wilcoxon)
+
+# Tworzenie wykresów
+plot_power <- function(power, title) {
+  qplot(mu_diffs, power, geom = 'line') + 
+    labs(title = title, x = expression(mu[2] - mu[1]), y = 'Power') + 
+    theme_minimal()
+}
+
+plots <- list(
+  plot_power(power_t_student, 'Test t-Studenta'),
+  plot_power(power_t_welch, 'Test t-Welcha'),
+  plot_power(power_wilcoxon, 'Test Wilcoxona')
+)
+
+# Wstawianie wykresów do tabeli
+table_plot <- grid.arrange(grobs = plots, nrow = 1)
+
+# Narysowanie funkcji mocy testów na jednym wykresie
+combined_plot <- ggplot() + 
+  geom_line(aes(mu_diffs, power_t_student, colour = 'Test t-Studenta')) +
+  geom_line(aes(mu_diffs, power_t_welch, colour = 'Test t-Welcha')) +
+  geom_line(aes(mu_diffs, power_wilcoxon, colour = 'Test Wilcoxona')) +
+  labs(x = expression(mu[2] - mu[1]), y = 'Power') +
+  labs(title = "Funkcja mocy testu") +
+  scale_colour_manual(values = c('blue', 'red', 'green')) +
+  theme_minimal()
+```
+
+```{r}
+library(ggplot2)
+
+set.seed(123)  # Dla reprodukowalności wyników
+
+mu1 <- 1
+sigma1 <- 2
+n1 <- 100
+
+sigma2 <- 4
+n2 <- 200
+
+mu_diffs <- seq(-5, 5, length.out = 200)  # Przedział różnic średnich
+alpha <- 0.05
+n_simulations <- 1000
+
+simulate_data <- function(n, mu, sigma) {
+  rnorm(n, mu, sigma)
+}
+
+calculate_power <- function(test_func, mu_diffs, n1, mu1, sigma1, n2, sigma2, alpha, n_simulations) {
+  power <- numeric(length(mu_diffs))
+  for (i in seq_along(mu_diffs)) {
+    mu2 <- mu1 + mu_diffs[i]
+    p_values <- replicate(n_simulations, {
+      sample1 <- simulate_data(n1, mu1, sigma1)
+      sample2 <- simulate_data(n2, mu2, sigma2)
+      test_result <- test_func(sample1, sample2)
+      test_result$p.value
+    })
+    power[i] <- mean(p_values < alpha)
+  }
+  power
+}
+
+# Test t-Studenta przy założeniu równości wariancji
+power_t <- calculate_power(function(x, y) t.test(x, y, var.equal = TRUE), 
+                           mu_diffs, n1, mu1, sigma1, n2, sigma2, alpha, n_simulations)
+
+# Test t-Welcha
+power_welch <- calculate_power(function(x, y) t.test(x, y, var.equal = FALSE), 
+                               mu_diffs, n1, mu1, sigma1, n2, sigma2, alpha, n_simulations)
+
+# Test sumy rang Wilcoxona
+power_wilcox <- calculate_power(wilcox.test, 
+                                mu_diffs, n1, mu1, sigma1, n2, sigma2, alpha, n_simulations)
+
+data <- data.frame(
+  mu_diff = rep(mu_diffs, 3),
+  power = c(power_t, power_welch, power_wilcox),
+  test = factor(rep(c('Test t-Studenta', 'Test t-Welcha', 'Test Wilcoxona'), each = length(mu_diffs)))
+)
+
+ggplot(data, aes(x = mu_diff, y = power, color = test)) +
+  geom_line() +
+  theme_minimal() +
+  labs(x = expression(mu[2] - mu[1]), y = 'Moc testu', title = 'Funkcje mocy testów statystycznych', color = 'Test') +
+  scale_color_manual(values = c('blue', 'red', 'green'))
+
+```
+
+Podobieństwo mocy testów: Wszystkie trzy testy mają bardzo podobne funkcje mocy w całym zakresie różnicy średnich. To wskazuje, że ich zdolność do odrzucenia hipotezy zerowej przy istniejącej różnicy średnich jest porównywalna.
+
+Brak jednostajnie najmocniejszego testu: Żaden z testów nie wyróżnia się jako jednostajnie najmocniejszy we wszystkich badanych przypadkach. Wartości mocy są bardzo bliskie dla wszystkich trzech testów, co oznacza, że wybór konkretnego testu powinien zależeć od innych czynników, takich jak założenia o danych, wielkość próbki i preferencje analityka.
+
+Moc wokół hipotezy zerowej: Dla wartości $\mu_2 - \mu_1$ bliskich zeru, wszystkie testy mają niską moc, co jest zgodne z oczekiwaniami, ponieważ różnica średnich jest niewielka, a więc trudniejsza do wykrycia.
+
+Moc dla znaczącej różnicy średnich: Gdy wartość bezwzględna różnicy średnich $\mu2 - \mu_1$ wzrasta, moc wszystkich testów również wzrasta, zbliżając się do wartości 1. Oznacza to, że wszystkie testy są bardzo skuteczne w wykrywaniu większych różnic między średnimi.
+
+Wrażliwość testu Wilcoxona: Test Wilcoxona jest testem nieparametrycznym i jest mniej wrażliwy na założenia o normalności rozkładów, więc jego podobna moc do testów parametrycznych wskazuje, że może być dobrym wyborem w praktyce, zwłaszcza gdy nie można spełnić założeń testów parametrycznych.
+
+Wpływ różnych wariancji: Test t-Welcha jest zaprojektowany do pracy z próbkami mającymi różne wariancje, a mimo to jego moc jest bardzo zbliżona do testu t-Studenta, który zakłada równość wariancji. To sugeruje, że w tej konkretnej symulacji różnica w wariancjach między grupami nie miała dużego wpływu na moc testu.
+
+Podsumowując, na podstawie tego wykresu nie można jednoznacznie stwierdzić, że istnieje test jednostajnie najmocniejszy we wszystkich badanych scenariuszach. Wybór testu powinien zatem bazować na innych kryteriach, takich jak założenia dotyczące danych, równość wariancji oraz rozmiar próbki.
+
+### Zadanie 3
+
+Rozważmy próbę $(X_1, ..., X_{100})$ z rozkładu wykładniczego $\mathcal{Exp}(1/\mu_1)$ oraz drugą próbę $(Y_1, ..., Y_{200})$ z rozkładu wykładniczego $\mathcal{Exp} (1/\mu_2)$ . Wykonajmy wykres funkcji mocy na przedziale $(0.5,1.5)$ .
+
+```{r}
+library(ggplot2)
+
+# Parametry dla rozkładów wykładniczych
+mu1 <- 1
+mu2_start <- 0.5
+mu2_end <- 1.5
+n1 <- 100
+n2 <- 200
+mu_diffs <- seq(mu2_start, mu2_end, length.out = 200) # Przedział mu2 wokół mu1
+alpha <- 0.05
+n_simulations <- 100
+
+# Funkcja do generowania danych z rozkładu wykładniczego
+generate_data <- function(n, mu) {
+  rexp(n, rate = 1 / mu)
+}
+
+# Funkcja do obliczania mocy testu
+calculate_power <- function(n1, n2, mu1, mu_diffs, alpha, n_simulations, test_func) {
+  powers <- sapply(mu_diffs, function(mu_diff) {
+    rejections <- replicate(n_simulations, {
+      sample1 <- generate_data(n1, mu1)
+      sample2 <- generate_data(n2, mu_diff)
+      test_result <- test_func(sample1, sample2)
+      test_result$p.value < alpha
+    })
+    mean(rejections)
+  })
+  return(powers)
+}
+
+# Testy statystyczne
+test_t_student <- function(x, y) t.test(x, y, var.equal = TRUE)
+test_t_welch <- function(x, y) t.test(x, y, var.equal = FALSE)
+test_wilcoxon <- function(x, y) wilcox.test(x, y, exact = FALSE, correct = FALSE)
+
+# Obliczanie mocy dla każdego testu
+power_t_student <- calculate_power(n1, n2, mu1, mu_diffs, alpha, n_simulations, test_t_student)
+power_t_welch <- calculate_power(n1, n2, mu1, mu_diffs, alpha, n_simulations, test_t_welch)
+power_wilcoxon <- calculate_power(n1, n2, mu1, mu_diffs, alpha, n_simulations, test_wilcoxon)
+
+# Tworzenie wykresów
+plot_power <- function(power, title) {
+  qplot(mu_diffs, power, geom = 'line') + 
+    labs(title = title, x = expression(mu[2] - mu[1]), y = 'Power') + 
+    theme_minimal()
+}
+
+plots <- list(
+  plot_power(power_t_student, 'Test t-Studenta'),
+  plot_power(power_t_welch, 'Test t-Welcha'),
+  plot_power(power_wilcoxon, 'Test Wilcoxona')
+)
+
+# Wstawianie wykresów do tabeli
+table_plot <- grid.arrange(grobs = plots, nrow = 1)
+
+# Narysowanie funkcji mocy testów na jednym wykresie
+combined_plot <- ggplot() + 
+  geom_line(aes(mu_diffs, power_t_student, colour = 'Test t-Studenta')) +
+  geom_line(aes(mu_diffs, power_t_welch, colour = 'Test t-Welcha')) +
+  geom_line(aes(mu_diffs, power_wilcoxon, colour = 'Test Wilcoxona')) +
+  labs(x = expression(mu[2] - mu[1]), y = 'Power') +
+  labs(title = "Funkcja mocy testu") +
+  scale_colour_manual(values = c('blue', 'red', 'green')) +
+  theme_minimal()
+
+
+
+
+
+
+```
+
+```{r}
+library(ggplot2)
+
+set.seed(123) # Dla reprodukowalności wyników
+
+# Ustawienia symulacji
+mu1 <- 1
+mu2_range <- seq(0.5, 1.5, length.out = 100) # Przedział mu2 wokół mu1
+n1 <- 100
+n2 <- 200
+alpha <- 0.05
+n_simulations <- 1000
+
+# Funkcja do generowania próbek
+generate_exponential_data <- function(n, rate) {
+  rexp(n, rate)
+}
+
+# Funkcja do obliczania mocy testu
+calculate_power <- function(n1, n2, mu1, mu2_range, alpha, test_func) {
+  powers <- sapply(mu2_range, function(mu2) {
+    p_values <- replicate(n_simulations, {
+      sample1 <- generate_exponential_data(n1, 1 / mu1)
+      sample2 <- generate_exponential_data(n2, 1 / mu2)
+      test_result <- test_func(sample1, sample2)
+      test_result$p.value
+    })
+    mean(p_values < alpha)
+  })
+  return(powers)
+}
+
+# Test t-Studenta
+power_t <- calculate_power(n1, n2, mu1, mu2_range, alpha, function(x, y) {
+  t.test(x, y, var.equal = TRUE)
+})
+
+# Test t-Welcha
+power_welch <- calculate_power(n1, n2, mu1, mu2_range, alpha, function(x, y) {
+  t.test(x, y, var.equal = FALSE)
+})
+
+# Test Wilcoxona
+power_wilcox <- calculate_power(n1, n2, mu1, mu2_range, alpha, function(x, y) {
+  wilcox.test(x, y)
+})
+
+# Przygotowanie danych do wykresu
+data <- data.frame(
+  mu2 = rep(mu2_range, 3),
+  power = c(power_t, power_welch, power_wilcox),
+  test = factor(rep(c('Test t-Studenta', 'Test t-Welcha', 'Test Wilcoxona'), each = length(mu2_range)))
+)
+
+# Wykres
+ggplot(data, aes(x = mu2, y = power, color = test)) +
+  geom_line() +
+  labs(x = "Mu2", y = "Moc testu", title = "Funkcje mocy testów statystycznych") +
+  scale_color_manual(values = c('blue', 'red', 'green')) +
+  theme_minimal()
+
+# Zapisanie wykresu do pliku
+ggsave("funkcje_mocy_testow.png", width = 10, height = 6, dpi = 300)
+
+
+
+```
+
+Moc testów w zależności od średniej: Wszystkie trzy testy mają najniższą moc, gdy wartości $\mu_2$ są bliskie wartości $\mu_1$. To jest zgodne z oczekiwaniami, gdyż mniejsza różnica między średnimi dwóch rozkładów wykładniczych sprawia, że trudniej jest statystycznie wykryć różnicę.
+
+Zwiększenie mocy testów: Moc wszystkich trzech testów zwiększa się w miarę oddalania wartości $\mu_2$ od wartości $\mu_1$ . To pokazuje, że testy stają się bardziej skuteczne w odrzucaniu fałszywej hipotezy zerowej, gdy rzeczywista różnica między średnimi jest większa.
+
+Porównanie testów: Test Wilcoxona, który jest testem nieparametrycznym, wydaje się mieć nieco niższą moc niż testy parametryczne (test t-Studenta i t-Welcha) w okolicy, gdzie $\mu_2$ jest znacznie większe lub mniejsze od $\mu_1$ . Jest to szczególnie widoczne, gdy $\mu_2$ jest większe od $\mu_1$ .
+
+Brak jednostajnie najmocniejszego testu: Nie ma testu, który byłby jednostajnie najmocniejszy we wszystkich punktach zakresu $\mu_2$ . Test t-Studenta i test t-Welcha mają bardzo zbliżoną moc, podczas gdy test Wilcoxona ma nieco niższą moc, szczególnie dla większych wartości $\mu_2$ .
+
+Podsumowując, wykres wskazuje, że testy parametryczne mają lepszą moc w wykrywaniu różnic w rozkładach wykładniczych, gdy różnice są większe, ale nie ma jednego testu, który byłby najlepszy we wszystkich sytuacjach. Wybór testu powinien zatem zależeć od założeń dotyczących danych oraz od specyfiki badanego problemu.
+
+## 4. Próba wybora testu jednostajnie najmocniejszego
+
+### 4.1 Test t-Studenta
+
+Wykonajmy wykres funkcji mocy dla testu t-Studentu na przedziale $(-2,2)$, dla trzech prób które już symulowaliśmy w sekcji 3.
+
+```{r}
+library(ggplot2)
+
+# Parametry symulacji
+mu1 <- 2
+n1 <- 100
+n2 <- 200
+mu_diffs <- seq(-2, 2, length.out = 100)
+alpha <- 0.05
+n_simulations <- 1000
+
+# Funkcja generująca próbki
+generate_samples <- function(n, dist, mu, sd) {
+  if (dist == "normal") {
+    return(rnorm(n, mean = mu, sd = sd))
+  } else if (dist == "exp") {
+    return(rexp(n, rate = 1 / mu))
+  }
+}
+
+# Funkcja do obliczania mocy testu
+calculate_power <- function(n1, n2, mu1, mu_diffs, alpha, n_simulations, dist, sd) {
+  powers <- numeric(length(mu_diffs))
+  for (i in seq_along(mu_diffs)) {
+    mu2 <- mu1 + mu_diffs[i]
+    reject_count <- 0
+    for (j in 1:n_simulations) {
+      sample1 <- generate_samples(n1, dist, mu1, sd)
+      sample2 <- generate_samples(n2, dist, mu2, sd)
+      t_test <- t.test(sample1, sample2, var.equal = TRUE)
+      if (t_test$p.value < alpha) {
+        reject_count <- reject_count + 1
+      }
+    }
+    powers[i] <- reject_count / n_simulations
+  }
+  return(powers)
+}
+
+# Obliczanie mocy dla trzech różnych scenariuszy
+power_normal_equal_var <- calculate_power(n1, n2, mu1, mu_diffs, alpha, n_simulations, "normal", 2)
+power_normal_unequal_var <- calculate_power(n1, n2, mu1, mu_diffs, alpha, n_simulations, "normal", 4)
+power_exp <- calculate_power(n1, n2, mu1, mu_diffs, alpha, n_simulations, "exp", 1)
+
+# Tworzenie wykresu
+ggplot(data = data.frame(mu_diff = rep(mu_diffs, 3), 
+                         power = c(power_normal_equal_var, power_normal_unequal_var, power_exp),
+                         scenario = factor(rep(c('Rozkład normalny z rownej warjancjej', 'Rozkład normalny z nie równej warjancjej', 
+                                                 'Rozkład wykładniczy'), each = length(mu_diffs))))) +
+  geom_line(aes(x = mu_diff, y = power, colour = scenario)) +
+  scale_colour_manual(values = c('Rozkład normalny z rownej warjancjej' = 'blue', 'Rozkład normalny z nie równej warjancjej' = 'red', 
+                                 'Rozkład wykładniczy' = 'green')) +
+  labs(title = "Porównanie mocy testu t-Studenta", x = expression(mu[2] - mu[1]), y = "Moc testu", colour = "Scenariusz") +
+  theme_minimal()
+
+
+```
+
+Test t-Studenta wydaje się być stosunkowo stabilny w obu scenariuszach z rozkładem normalnym, niezależnie od równości wariancji.
+
+W przypadku rozkładu wykładniczego, moc testu jest generalnie niższa, co sugeruje, że test t-Studenta może nie być najlepszym wyborem dla danych, które nie są normalnie rozłożone.
+
+### 4.2 Test t-Welcha
+
+Wykonajmy wykres funkcji mocy dla testu t-Welcha na przedziale $(-2,2)$, dla trzech prób które już symulowaliśmy w sekcji 3.
+
+```{r}
+
+library(ggplot2)
+
+# Parametry symulacji
+mu1 <- 2
+n1 <- 100
+n2 <- 200
+mu_diffs <- seq(-2, 2, length.out = 100)
+alpha <- 0.05
+n_simulations <- 1000
+
+# Funkcja generująca próbki
+generate_samples <- function(n, dist, mu, sd) {
+  if (dist == "normal") {
+    return(rnorm(n, mean = mu, sd = sd))
+  } else if (dist == "exp") {
+    return(rexp(n, rate = 1 / mu))
+  }
+}
+
+# Funkcja do obliczania mocy testu
+calculate_power <- function(n1, n2, mu1, mu_diffs, alpha, n_simulations, dist, sd) {
+  powers <- numeric(length(mu_diffs))
+  for (i in seq_along(mu_diffs)) {
+    mu2 <- mu1 + mu_diffs[i]
+    reject_count <- 0
+    for (j in 1:n_simulations) {
+      sample1 <- generate_samples(n1, dist, mu1, sd)
+      sample2 <- generate_samples(n2, dist, mu2, sd)
+      t_test <- t.test(sample1, sample2, var.equal = FALSE)
+      if (t_test$p.value < alpha) {
+        reject_count <- reject_count + 1
+      }
+    }
+    powers[i] <- reject_count / n_simulations
+  }
+  return(powers)
+}
+
+# Obliczanie mocy dla trzech różnych scenariuszy
+power_normal_equal_var <- calculate_power(n1, n2, mu1, mu_diffs, alpha, n_simulations, "normal", 2)
+power_normal_unequal_var <- calculate_power(n1, n2, mu1, mu_diffs, alpha, n_simulations, "normal", 4)
+power_exp <- calculate_power(n1, n2, mu1, mu_diffs, alpha, n_simulations, "exp", 1)
+
+# Tworzenie wykresu
+ggplot(data = data.frame(mu_diff = rep(mu_diffs, 3), 
+                         power = c(power_normal_equal_var, power_normal_unequal_var, power_exp),
+                         scenario = factor(rep(c('Rozkład normalny z rownej warjancjej', 'Rozkład normalny z nie równej warjancjej', 
+                                                 'Rozkład wykładniczy'), each = length(mu_diffs))))) +
+  geom_line(aes(x = mu_diff, y = power, colour = scenario)) +
+  scale_colour_manual(values = c('Rozkład normalny z rownej warjancjej' = 'blue', 'Rozkład normalny z nie równej warjancjej' = 'red', 
+                                 'Rozkład wykładniczy' = 'green')) +
+  labs(title = "Porównanie mocy testu t-Welcha", x = expression(mu[2] - mu[1]), y = "Moc testu", colour = "Scenariusz") +
+  theme_minimal()
+
+
+```
+
+Test t-Welcha, który jest bardziej odpowiedni dla prób o różnych wariancjach, pokazuje większą moc w scenariuszu z nierównymi wariancjami, co jest oczekiwanym wynikiem.
+
+Podobnie jak w przypadku testu t-Studenta, dla rozkładu wykładniczego moc testu t-Welcha jest niższa.
+
+### 4.3 Test sumy rang Wilcoxona
+
+Wykonajmy wykres funkcji mocy dla testu sumy rang Wilcoxona na przedziale $(-2,2)$, dla trzech prób które już symulowaliśmy w sekcji 3.
+
+```{r}
+
+library(ggplot2)
+
+# Parametry symulacji
+mu1 <- 2
+n1 <- 100
+n2 <- 200
+mu_diffs <- seq(-2, 2, length.out = 100)
+alpha <- 0.05
+n_simulations <- 100
+
+# Funkcja generująca próbki
+generate_samples <- function(n, dist, mu, sd) {
+  if (dist == "normal") {
+    return(rnorm(n, mean = mu, sd = sd))
+  } else if (dist == "exp") {
+    return(rexp(n, rate = 1 / mu))
+  }
+}
+
+# Funkcja do obliczania mocy testu
+calculate_power <- function(n1, n2, mu1, mu_diffs, alpha, n_simulations, dist, sd) {
+  powers <- numeric(length(mu_diffs))
+  for (i in seq_along(mu_diffs)) {
+    mu2 <- mu1 + mu_diffs[i]
+    reject_count <- 0
+    for (j in 1:n_simulations) {
+      sample1 <- generate_samples(n1, dist, mu1, sd)
+      sample2 <- generate_samples(n2, dist, mu2, sd)
+      t_test <- wilcox.test(sample1, sample2)
+      if (t_test$p.value < alpha) {
+        reject_count <- reject_count + 1
+      }
+    }
+    powers[i] <- reject_count / n_simulations
+  }
+  return(powers)
+}
+
+# Obliczanie mocy dla trzech różnych scenariuszy
+power_normal_equal_var <- calculate_power(n1, n2, mu1, mu_diffs, alpha, n_simulations, "normal", 2)
+power_normal_unequal_var <- calculate_power(n1, n2, mu1, mu_diffs, alpha, n_simulations, "normal", 4)
+power_exp <- calculate_power(n1, n2, mu1, mu_diffs, alpha, n_simulations, "exp", 1)
+
+# Tworzenie wykresu
+ggplot(data = data.frame(mu_diff = rep(mu_diffs, 3), 
+                         power = c(power_normal_equal_var, power_normal_unequal_var, power_exp),
+                         scenario = factor(rep(c('Rozkład normalny z rownej warjancjej', 'Rozkład normalny z nie równej warjancjej', 
+                                                 'Rozkład wykładniczy'), each = length(mu_diffs))))) +
+  geom_line(aes(x = mu_diff, y = power, colour = scenario)) +
+  scale_colour_manual(values = c('Rozkład normalny z rownej warjancjej' = 'blue', 'Rozkład normalny z nie równej warjancjej' = 'red', 
+                                 'Rozkład wykładniczy' = 'green')) +
+  labs(title = "Porównanie mocy testu sumy rang Wilcoxona", x = expression(mu[2] - mu[1]), y = "Moc testu", colour = "Scenariusz") +
+  theme_minimal()
+
+
+```
+
+Test Wilcoxona, jako test nieparametryczny, pokazuje lepszą zdolność do radzenia sobie z danymi z rozkładu wykładniczego w porównaniu do testów parametrycznych.
+
+W przypadku rozkładów normalnych, test Wilcoxona ma porównywalną moc do testu t-Studenta i testu t-Welcha, co sugeruje, że jest dość uniwersalnym testem, ale może nie być najmocniejszym wyborem w przypadku danych dobrze pasujących do założeń testów parametrycznych.
+
+## 5. Wnioski
+
+Na podstawie wykresów nie ma jednoznacznego testu, który byłby jednostajnie najmocniejszy w każdym scenariuszu. Wybór testu powinien zależeć od rozkładu danych:
+
+-   Dla danych normalnie rozłożonych z równymi wariancjami, test t-Studenta i test t-Welcha są podobnie skuteczne.
+-   Dla danych normalnie rozłożonych z różnymi wariancjami, test t-Welcha wydaje się być bardziej odpowiedni.
+-   Dla danych z rozkładu wykładniczego, test Wilcoxona może być lepszym wyborem ze względu na mniejsze założenia dotyczące rozkładu danych.
+
+Wybór odpowiedniego testu powinien uwzględniać charakterystykę danych, wielkość próby oraz założenia dotyczące rozkładów próbek.

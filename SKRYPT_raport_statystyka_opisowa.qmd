@@ -1,0 +1,461 @@
+---
+title: "Sprawozdanie 1"
+format: pdf
+editor: visual
+author: Yana Negulescu
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Spis treści:
+
+1.  Wstęp
+2.  Opis testów
+3.  Próba wyboru testu jednostajnie najmocniejszego spośród wybranych
+4.  Podsumowanie
+
+## 1. Opis danych
+
+W tym sprawozdaniu będę analizowała dane dotyczące choroby otyłoścą u ludzi, pobrałam je ze strony internetowej Kagle: <https://www.kaggle.com/datasets/myroslavsobchyshyn/obesity-dataset/data>.
+
+Dane obejmują ocenę poziomu otyłości u osób z krajów Meksyku, Peru i Kolumbii, w wieku od 14 do 61 lat, o zróżnicowanych nawykach żywieniowych i kondycji fizycznej, dane zebrano za pomocą platformy internetowej wraz z ankietą, w której anonimowi użytkownicy odpowiadali na pytania, następnie informacje zostały przetworzone, uzyskując 17 atrybutów i 2111 rekordów.
+
+-   Uzyskane zmienne: Gender, Age, Height i Weight.
+
+-   Zmienne związane z nawykami żywieniowymi: występowanie choroby otyłością w rodzinie (family_history_with_overweight), częste spożywanie żywności wysokokalorycznej (FAVC), częstotliwość spożycia warzyw (FCVC), liczba posiłków głównych (NCP), spożywanie pokarmów między posiłkami (CAEC), dzienne spożycie wody (CH20) oraz spożycie alkoholu (CALC).
+
+-   Zmienne związane ze stanem fizycznym: monitorowanie spożycia kalorii (SCC), częstotliwość aktywności fizycznej (FAF), czas korzystania z urządzeń technologicznych (TUE) oraz używany środek transportu (MTRANS), ocena stanu ciała (NObesity)
+
+Pytanie badawcze: Jak i w jakim stopniu pewne nawyki behawioralne wpływają na otyłość u ludzi.
+
+## 2. Wczytanie danych, nadanie odpowiednich etykiet, typów oraz wartości, obsługa braków danych
+
+```{r, include=FALSE}
+library("readxl")
+library("ggplot2")
+library(dplyr)
+library(pROC)
+```
+
+Pierwsze sześć wierszów:
+
+```{r}
+#Wczytanie danych
+
+dane <- read_excel("Obesity.xlsx")
+head(dane)
+```
+
+Teraz przeanalizujemy jakie mamy zmienne:
+
+-   Gender (płec): zmienna kategoryczna. Przyjmuje wartości: female/male.
+
+-   Age (wiek): zmienna ciągła. Przyjmuje wartości: 14, ..., 61.
+
+-   Height (wzrost): zmienna ciągła. Przyjmuje wartości: 1.45, ..., 1.98.
+
+-   Weight (waga): zmienna ciągła. Przyjmuje wartości: 39, ..., 173..
+
+-   family_history_with_overweight (choroby w rodzinie): zmienna kategoryczna. Przyjmuje wartości: yes/now. Zamienimy to na 1/0 dla wygodności.
+
+-   FAVC (spożywanie żywności wysokokaloryczne): zmienna kategoryczna. Przyjmuje wartości: yes/no. Zamienimy to na 1/0 dla wygodniejszej analizy.
+
+-   FCVC (ilość spożywanych ważyw dziennie): zmienna ciągła. Przyjmuje wartości: 1, ..., 3.
+
+-   NCP (ilość posiłków głównych): zmienna ciągła. Przyjmuje wartości: 1, ..., 4.
+
+-   CAEC(spożywanie pokarmów pomiędzy posiłkami): zmienna kategoryczna. Przyjmuje wartości: no/Sometimes/Frequently/Always. Zamienimy to na 0/1/2/3 dla wygodności.
+
+-   SMOKE: zmienna kategoryczna. Przyjmuje wartości: yes/no. Zamienimy to na 1/0 dla wygodności.
+
+-   CH2O(spożywanie wody w litrach): zmienna ciągła. Przyjmuje wartości: 1, ..., 3.
+
+-   CALC(częstość spożuwania alkoholu): zmienna kategoryczna. Przyjmuje wartości: no/Sometimes/Frequently/Always. Zamienimy to na 0/1/2/3 dla wygodności.
+
+-   SCC (kontrola kalorii): zmienna kategoryczna. Przyjmuje wartości: yes/no. Zamienimy to na 1/0 dla wygodności.
+
+-   FAF (godziny aktywności fizycznej): zmienna ciągła. Przyjmuje wartości: 0, ..., 3.
+
+-   TUE (czas korzystania z urządzeń w tygodniu): zmienna ciągła. Przyjmuje wartości: 0, ..., 2.
+
+-   MTRANS: zmienna kategoryczna. Przyjmuje wartości: Walking/Bike/Public_Transportation/Motorbike/Automobile.
+
+-   NObeyesdad (Poziom otyłości): zmienna kategoryczna. Definiujemy ją zgodnie z wskażnikiem BMI (wskażnik masy ciała), jaki wynosi$\cfrac{waga}{wzrost^2}$ . Przyjmuje wartości:
+
+    1.  Insufficient_Weight: BMI \< 18,49
+
+    2.  Normal_Weight: 18,5 \< BMI \< 24,99
+
+    3.  Overweight_Level_I: 25,0 \< BMI \< 27,49
+
+    4.  Overweight_Level_II: 27,5 \< BMI \< 29,99
+
+    5.  Obesity_Type_I: 30,0 \< BMI \< 34,99
+
+    6.  Obesity_Type_II: 35,0 \< BMI \< 39,99
+
+    7.  Obesity_Type_III: BMI \> 40
+
+        Dla wygodności zamienimy na -1/0/1/2/3/4/5.
+
+```{r, include=FALSE}
+dane <- dane %>% mutate(CAEC = recode(CAEC, 
+                                      "no" = 1,
+                                      "Sometimes" = 2,
+                                      "Frequently" = 3,
+                                      "Always" = 4,
+                                      .default = NA_real_),
+                        CALC = recode(CALC, 
+                                      "no" = 1,
+                                      "Sometimes" = 2,
+                                      "Frequently" = 3,
+                                      "Always" = 4,
+                                      .default = NA_real_),
+                        NObeyesdad = recode(NObeyesdad, 
+                                      "Insufficient_Weight" = -1,
+                                      "Normal_Weight" = 0,
+                                      "Overweight_Level_I" = 1,
+                                      "Overweight_Level_II" = 2,
+                                      "Obesity_Type_I" = 3,
+                                      "Obesity_Type_II" = 4,
+                                      "Obesity_Type_III" = 5)) 
+dane <- dane %>% mutate(FAVC = recode(FAVC, 
+                                      "no" = 0,
+                                      "yes" = 1),
+                        SMOKE = recode(SMOKE, 
+                                      "no" = 0,
+                                      "yes" = 1),
+                        SCC = recode(SCC, 
+                                      "no" = 0,
+                                      "yes" = 1),
+                        family_history_with_overweight = recode                   (family_history_with_overweight, 
+                                      "no" = 0,
+                                      "yes" = 1))
+
+head(dane)
+```
+
+#### Obsługa braków danych:
+
+```{r,include=FALSE}
+dane[!complete.cases(dane),]
+```
+
+Mamy 73 braka danych. W stosunku do 2111 rekordów to nie zbyt dużo więc podejmowałam decyzje ich usunąć.
+
+```{r, include=FALSE}
+dane <- na.omit(dane)
+dim(dane)
+```
+
+Teraz mamy 2038 rekordów oraz 17 atrybutów.
+
+## 3. Analiza danych
+
+#### **Histogram** danych `dane$NObeyesdad`
+
+Zobaczymy histogram danych odpowiadujących za stan ciała:
+
+```{r}
+ggplot(dane, aes(x=dane$NObeyesdad)) + 
+  geom_histogram(bins = 20)+
+  ggtitle("Histogram NObeyesdad") +
+  xlab("-1 - Niedowaga; 0 - Norma; 1 - Nadwaga I st.; 2 - Nadwaga 2 st.; 3 - Otyłość Ist.; 4 - Otyłość II st.; 5 - Otyłość III st.") +
+  ylab("Liczba osób")
+
+
+```
+
+Widzimy że w naszym datasecie przeważają dane dotyczące osób z otyłością pierwszego stopnia, jednak liczba wszystkich danych dotyczących innych stanów ciała jest mniej więcej na tym samym pożiomie.
+
+#### Mężczyzny i kobiety: ryzyko choroby na otyłość w zależności od wieku
+
+Podzielimy nasze dane na kategorii mężczyżni i kobiety i sprawdżmy w jakim wieku jest najwiękrze ryzyko choroby otyłością spośród kobiet i mężczyżn:
+
+```{r}
+dane_kobiety <- dane %>% filter(Gender == "Female")
+dane_mezczyzni <- dane %>% filter(Gender == "Male")
+ilosc_k <- nrow(dane_kobiety)
+ilosc_m <- nrow(dane_mezczyzni)
+
+data <- data.frame(
+  Plec = c("Kobiety", "Mężczyźni"),
+  Liczba = c(ilosc_m, ilosc_k)
+)
+
+ggplot(data, aes(x = Plec, y = Liczba, fill = Plec)) +
+  geom_bar(stat = "identity") +
+  ggtitle("Liczba kobiet i mężczyzn") +
+  xlab("Płeć") +
+  ylab("Liczba osób")
+
+
+```
+
+Odfiltrujemy kobiet ze stanem ciała uznawanym za akceptowalny dla zdrowia, to znaczy normal_weight, owerweight_level_1, overweight_level_2 (ostatnie dwa to stopni nadwagi, nie są chorobą) oraz kobiet chorujących na otyłość. To samo zrobimy dla kategorii mężczyżn.
+
+```{r}
+norma_kobiety <- dane_kobiety %>% filter(NObeyesdad == 0| 
+                                        NObeyesdad == 1| 
+                                        NObeyesdad ==2)
+
+obesity_kobiety <- dane_kobiety %>% filter(NObeyesdad == 3| 
+                                   NObeyesdad == 4| 
+                                   NObeyesdad ==5)
+
+norma_mezczyzni <- dane_mezczyzni %>% filter(NObeyesdad == 0| 
+                                        NObeyesdad == 1| 
+                                        NObeyesdad ==2)
+
+obesity_mezczyzni <- dane_mezczyzni %>% filter(NObeyesdad == 3| 
+                                   NObeyesdad == 4| 
+                                   NObeyesdad ==5)
+```
+
+Dalej odfiltrujemy wszystkich po wieku i narysujemy wykresy słupkowe.
+
+```{r}
+obesity_kobiety14_20 <- obesity_kobiety %>% filter(Age>= 14, Age<21)
+obesity_kobiety21_30 <- obesity_kobiety %>% filter(Age>= 21, Age<31)
+obesity_kobiety31_40 <- obesity_kobiety %>% filter(Age>= 31, Age<41)
+obesity_kobiety41_50 <- obesity_kobiety %>% filter(Age>= 41, Age<51)
+obesity_kobiety51_61 <- obesity_kobiety %>% filter(Age>= 51, Age<=61)
+
+data <- data.frame(
+  Wiek = c("14 - 20", "21 - 30", "31 - 40", "41 - 50", "51 - 61"),
+  Liczba = c(nrow(obesity_kobiety14_20),
+             nrow(obesity_kobiety21_30),
+             nrow(obesity_kobiety31_40),
+             nrow(obesity_kobiety41_50),
+             nrow(obesity_kobiety51_61))
+)
+
+ggplot(data, aes(x = Wiek, y = Liczba, fill = Wiek)) +
+  geom_bar(stat = "identity") +
+  ggtitle("Tendencja otyłości u kobiet") +
+  xlab("Wiek") +
+  ylab("Liczba osób")
+```
+
+To samo zrobimy dla kategorii mężczyżn:
+
+```{r}
+obesity_m14_20 <- obesity_mezczyzni %>% filter(Age>= 14, Age<21)
+obesity_m21_30 <- obesity_mezczyzni %>% filter(Age>= 21, Age<31)
+obesity_m31_40 <- obesity_mezczyzni %>% filter(Age>= 31, Age<41)
+obesity_m41_50 <- obesity_mezczyzni %>% filter(Age>= 41, Age<51)
+obesity_m51_61 <- obesity_mezczyzni %>% filter(Age>= 51, Age<=61)
+
+data <- data.frame(
+  Wiek = c("14 - 20", "21 - 30", "31 - 40", "41 - 50", "51 - 61"),
+  Liczba = c(nrow(obesity_m14_20),
+             nrow(obesity_m21_30),
+             nrow(obesity_m31_40),
+             nrow(obesity_m41_50),
+             nrow(obesity_m51_61))
+)
+
+ggplot(data, aes(x = Wiek, y = Liczba, fill = Wiek)) +
+  geom_bar(stat = "identity") +
+  ggtitle("Tendencja do otyłości u mężczyżn") +
+  xlab("Wiek") +
+  ylab("Liczba osób")
+```
+
+Z wykresów możemy zauważyć, że najbardziej podatne na otyłość są osoby w wieku 21 - 30 lat, jednak nie wydaje się, aby to było prawdą. Przepuszczam, że skoro te dane sązostały wzięte z wyników ankiet na stronie internetowej, nie są oni zbyt dokładne odnośnie wieku, ponieważ osoby starsze rzadziej korzystają z internetu.
+
+#### **Zależność** zmiennej `NObeyesdad` od reszty zmiennych
+
+```{r, include=FALSE}
+Plec <- dane$Gender
+Wiek <- dane$Age
+Wzrost <- dane$Height
+Waga <- dane$Weight
+historia_rodziny <- dane$family_history_with_overweight
+dużo_kalorii <- dane$FAVC
+warzywa <- dane$FCVC
+dania_glowne <- dane$NCP
+posilki <- dane$CAEC
+palenie <- dane$SMOKE
+woda <- dane$CH2O
+liczenie_kalorii <- dane$SCC
+aktywnosc_fizyczna <- dane$FAF
+tech_urządzenia <- dane$TUE
+alkohol <- dane$CALC
+transport <- dane$MTRANS
+stan_ciala <- dane$NObeyesdad
+
+data2 <- data.frame(stan_ciala, historia_rodziny,dużo_kalorii, warzywa, dania_glowne, posilki, palenie, woda, liczenie_kalorii, aktywnosc_fizyczna, tech_urządzenia, alkohol)
+
+model <- lm(stan_ciala ~ historia_rodziny + dużo_kalorii + warzywa + dania_glowne + posilki +palenie +woda + liczenie_kalorii + aktywnosc_fizyczna + tech_urządzenia + alkohol, data=data2)
+model_info <- summary(model)
+print(model_info)
+
+```
+
+R-squared wynosi $0.4312$ , co oznacza że wszystkie zmienne wyjaśniają $43.12\%$ zmiennej zależnej NObeyesdad.
+
+Największy wpływ na zmienną `stan_ciała` mają zmienne `posilki`, `liczenie_kalorii` mają oni silną negatywną korelacje$-0.96890, -0.72495$ blisko -1, co oznacza że kiedu jedna z nich maleje zmienna `stan_ciała` rożnie i na odwrót. Też wielki wpływ mają zmienne `dużo_kalorii` i `warzywa` mają duży współczynnik dodatniej korelacji $0.60457, 0.80530$ blisko 1, to znaczy kiedy jedna z nich rośnie, zmienna stan_ciala też rośnie.
+
+Zmienne `aktywnosc_fizyczna`, `tech_urzadzenia`, `alkohol` mają mniejszy wpływ na zmienną `stan_ciala` niż powyższe. Ich współczynniki korelacji: $-0.35769, -0.26595, 0.41770$
+
+Zmienne `dania_glowne`, `palennie` i `woda` mają najmniejszy wpływ, ich wspołczynniki korelacji $0.04792, 0.19169, 0.13463$ są blisko 0.
+
+#### Mężczyzny i kobiety: ryzyko choroby na otyłość w zależności od spożycia ważyw
+
+Teraz spradżmy jaki wpływ ma spożycie warzyw na stan ciała u kobiet i meżczyżn: obliczymy podstawowe statystyki dla atrybuta FCVC(ilość sporzytych warzyw) każdej kategorii (ludzi z otyłością i bez).
+
+```{r, include=FALSE}
+
+odchylenie_standardowe <- sd(norma_kobiety$FCVC)
+summary_stats <- summary(norma_kobiety$FCVC)
+summary_stats
+odchylenie_standardowe
+
+odchylenie_standardowe <- sd(obesity_kobiety$FCVC)
+summary_stats <- summary(obesity_kobiety$FCVC)
+summary_stats
+odchylenie_standardowe
+```
+
+Dla nas jest oczewiste że spożycie warzyw i owoców ma wpływ na zdrowość ciała, ale z naszysz obliczeń można wywnioskować że spożycie warzyw nie ma wielkiego wpływu, bo średnia dla kobiet z pierwszej kategorji wynosi 2,361 oraz odchylenie standardowe 0,5418936, co znaczy że większość wartości znajduje sie w przedziale \[1,8191064; 2,9028936\], oraz dla kobiet z drugiej kategorji średnia wynosi 2,755 oraz odchylenie standardowe 0,4543976, znajdują się oni w przedziale \[2,3006024; 3,00\]
+
+```{r, include=FALSE}
+
+odchylenie_standardowe <- sd(norma_mezczyzni$FCVC)
+summary_stats <- summary(norma_mezczyzni$FCVC)
+summary_stats
+odchylenie_standardowe
+
+odchylenie_standardowe <- sd(obesity_mezczyzni$FCVC)
+summary_stats <- summary(obesity_mezczyzni$FCVC)
+summary_stats
+odchylenie_standardowe
+```
+
+Mamy podobne wyniki dla mężczyzn z kategorii 1 i 2, więc wnioskuę, że spożycie warzyw nie ma wpływu na wskażnik BMI.
+
+#### Mężczyzny i kobiety: ryzyko choroby na otyłość w zależności od przypadków otyłości w rodzinie
+
+```{r, include=FALSE}
+ob_kob_fam <- obesity_kobiety %>% filter(family_history_with_overweight == 1)
+norma_kob_fam <- norma_kobiety %>% filter(family_history_with_overweight == 1)
+
+nrow(ob_kob_fam)/nrow(obesity_kobiety)
+
+nrow(norma_kob_fam)/nrow(norma_kobiety)
+```
+
+Okazuje się że spośród kobiet z otyłością u $99\%$ są członki rodziny chore na otyłość, podczas gdy u kobiet nie chorujących ten procent jest znacznie niższy - $73.69\%$
+
+```{r,include=FALSE}
+ob_m_fam <- obesity_mezczyzni %>% filter(family_history_with_overweight == 1)
+norma_m_fam <- norma_mezczyzni %>% filter(family_history_with_overweight == 1)
+
+nrow(ob_m_fam)/nrow(obesity_mezczyzni)
+
+nrow(norma_m_fam)/nrow(norma_mezczyzni)
+```
+
+To samo możemy zobaczyć i u mężczyżn, gdzie u $98.92\%$ meżczyn z otyłością w rodzinie występowały przypadki otyłości, odnośnie $73.11\%$ u mężczyzn nie chorujących.
+
+Oznacza to, że osoby z przypadkami choroby w rodzinie mają większe ryzyko na chorobę otyłością.
+
+#### **Logistyczna analiza regresji**: wpływ użycia użądzeń technologcznych na zdrowie
+
+Teraz skorzystamy z logistycznej analizy regresji do oszacowania wpłuwu użycia użądzeń technologcznych na zdrowie. Musimy skonstułować zależną zmienną binarną `NObeyesdad` (stan ciała) Dlatego odfiltrujemy dane na ludzi z otyłością i bez, oznaczmy ich 1 i 0, oraz skonstrulujemy model.
+
+```{r, include=FALSE}
+newdata <- dane %>% mutate(NObeyesdad = recode(NObeyesdad, 
+                                      "-1" = 0,
+                                      "0" = 0,
+                                      "1" = 0,
+                                      "2" = 0,
+                                      "3" = 1,
+                                      "4" = 1,
+                                      "5" = 1))
+
+model <- glm(newdata$NObeyesdad ~ newdata$TUE, data = newdata, family = binomial)
+summary(model)
+```
+
+P-wartości, odpowiednio $0.908$ dla wyrazu wolnego i $3.48e-05$ dla `newdata$TUE` (korzystanie z urządzeń technologicznych). Niska p-wartość wskazuje, że istnieje statystycznie istotna zależność między `newdata$TUE` a szansami na `newdata$NObeyesdad`.
+
+Różnica między Null deviance a Residual deviance wskazuje na to, ile model tłumaczy. Zmniejszenie odchylenia resztowego wskazuje na pewne, ale nie znaczące, dopasowanie modelu.
+
+Narysujemy krzywą ROC(Receiver Operating Characteristic), aby zobaczyć, jak dobrze `newdata$TUE` przewidują `newdata$NObeyesdad`, oraz policzymy współczynnik AUC(Area Under the Curve):
+
+```{r}
+newdata$predicted_prob <- predict(model, newdata, type = "response")
+
+roc_result <- roc(newdata$NObeyesdad, newdata$predicted_prob)
+
+roc_data <- data.frame(
+  TPR = roc_result$sensitivities, 
+  FPR = 1 - roc_result$specificities, 
+  Thresholds = roc_result$thresholds
+)
+
+
+auc_value <- auc(roc_result)
+ggplot(roc_data, aes(x = FPR, y = TPR)) + 
+  geom_line() + 
+  geom_abline(linetype = "dashed") +
+  annotate("text", x = 0.6, y = 0.4, label = paste("AUC =", format(auc_value, digits=4)), size = 5, color = "blue") +
+  labs(title = "Krzywa ROC", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_minimal()
+```
+
+Wartość AUC powyżej 0.5 oznacza, że model jest lepszy niż losowa klasyfikacja.
+
+Wniosek: model wydaje się mieć pewną zdolność do wyjaśniania zmienności danych, ale wartości odchylenia wskazują na to, że może być jeszcze sporo niewyjaśnionej zmienności.
+
+#### **Logistyczna analiza regresji**: wpływ aktywności fizycznej na zdrowie
+
+Jeszcze raz skorzystamy z logistycznej analizy regresji do oszacowania wpłuwu aktywności fizycznej na zdrowie:
+
+```{r, include=FALSE}
+model <- glm(newdata$NObeyesdad ~ newdata$FAF, data = newdata, family = binomial)
+summary(model)
+```
+
+P-wartości dla współczynników są odpowiednio 0.0218 dla wyrazu wolnego i 8.25e-11 dla `newdata$FAF` (czas aktywności fizycznej). Niska p-wartość dla `newdata$FAF` (znacznie mniejsza niż 0.05) wskazuje, że istnieje statystycznie istotny związek między `newdata$FAF` a szansami na `newdata$NObeyesdad`.
+
+Null deviance: 2806.4 na 2037 stopniach swobody i Residual deviance: 2762.9 na 2036 stopniach swobody. Zmniejszenie odchylenia wskazuje na to, że model z `newdata$FAF` lepiej pasuje do danych niż model zawierający tylko wyraz wolny.
+
+Wpływ `newdata$FAF` na `newdata$NObeyesdad` jest istotny statystycznie i negatywny, co znaczy przy zmniejszeniu aktywności fizycznej wzrasta szansa na chorobę otyłością.
+
+Narysujemy krzywą ROC(Receiver Operating Characteristic), aby zobaczyć, jak dobrze `newdata$FAF` przewidują `newdata$NObeyesdad`, oraz policzymy współczynnik AUC(Area Under the Curve):
+
+```{r}
+newdata$predicted_prob <- predict(model, newdata, type = "response")
+
+roc_result <- roc(newdata$NObeyesdad, newdata$predicted_prob)
+
+roc_data <- data.frame(
+  TPR = roc_result$sensitivities, 
+  FPR = 1 - roc_result$specificities, 
+  Thresholds = roc_result$thresholds
+)
+
+
+auc_value <- auc(roc_result)
+ggplot(roc_data, aes(x = FPR, y = TPR)) + 
+  geom_line() + 
+  geom_abline(linetype = "dashed") +
+  annotate("text", x = 0.6, y = 0.4, label = paste("AUC =", format(auc_value, digits=4)), size = 5, color = "blue") +
+  labs(title = "Krzywa ROC", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_minimal()
+```
+
+AUC wynosi $0.5732$ co wskazuje na to że zmienna `newdata$FAF` pzewiduje ponad połowe danych.
+
+Model ma pewną zdolność do wyjaśniania zmienności w danych, ale nadal istnieje znacząca niewyjaśniona zmienność (jak wskazuje odchylenie resztowe).
+
+## 4. Podsumowanie
+
+Przeanalizowaliśmy dane dotyczące choroby otyłością spośród kobiet i mężczyzn w różnym wieku. Wyjaśniliśmy, że prowadzenie siedzącego trybu życia, częste korzystanie z urządzeń technicznych (czyli przebywanie w pozycji statycznej), czeste spożywanie wysokokalorycznych potraw powoduje ryzyko na chorobe otyłością. Też wpływ ma przypadki otyłości w rodzinie. Z drugiej strony wyjaśniliśmy, że palenie i piecie wody nie wpływają tak bardzo na ryzyko otyłości.
