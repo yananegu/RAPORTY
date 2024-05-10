@@ -1,19 +1,33 @@
-# RAPORTY 
-W tym repozytorium znajdują się raporty z laboratorium z Symulacji komputerowych, Statystyki stosowanej, Komputerowej analizy szeregów czasowych oraz Pakietów statystycznych
+# Reports Repository
 
-Raport z **Symulacji komputerowych** znajduje się w plikie Raport_Symulacji_komputerowe.ipynb, raport jest napisany w jezyku Python
+## Repository Description
+This repository contains reports from laboratories on Computer Simulations, Applied Statistics, Computer Time Series Analysis, and Statistical Packages.
 
-Raporty ze **Statystyki stosowanej** znajdują się w plikach raport_analiza_wybranych_danych.ipynb oraz raport_testowanie_hipotez.ipynb.  W pierwszym skrypcie raportu *Analiza wybranych danych rzeczywistych z wykorzystaniem metod statystyki opisowej* jest wykorzystywany plik z danymi 'HistoricalPrices.csv', odpowiednio w drugim skrypcie raportu *Testowanie hipotez statystycznych* są wykorzystywane pliki 'dane1.txt' oraz 'dane2.txt'. Raporty są napisane w Pythonie.
+### Computer Simulations
+- **Report**: `Report_computer_simulation.ipynb`
+  - **Description**: This report discusses various computer simulation methods. Written in Python.
 
-Raporty z **Komputerowej analizy szeregów czasowych** znajdują sie w plikach raport_analiza_zaleznasci_liniowej.pdf oraz raport_model_ARMA.pdf. Skrypt do pierwszego raportu *Wykorzystanie poznanych metod dotyczących analizy zależności liniowej do wybranych danych rzeczywistych* znajduje się w plikie SKRYPT_raport_analiza_zaleznosci.qmd. Skrypt do drugiego raportu *Analiza danych rzeczywistych przy pomocy modelu ARMA* znajduje się w plikie SKRYPT_raport_ARMA.ipynb, w nim jest wykorzystywany plik dane_Jan_Mayen.csv. Raporty są napisane w Pythonie.
+### Applied Statistics
+- **Reports**:
+  - `report_analysis_of_selected_real_data.ipynb`: Analyzes selected real-world data using descriptive statistics methods. Utilizes the `HistoricalPrices.csv` data file.
+  - `report_hipothesis_testing_python.ipynb`: Focuses on statistical hypothesis testing using data from `dane1.txt` and `dane2.txt`. Written in Python.
 
-Raporty z **Pakietów statysstycznych** znajdują się w plikach raport_statystyka_opisowa.pdf oraz raport_weryfikacja_hipotez.pdf.  Skrypt do pierwszego raportu *Wykorzystanie metod statystyki opisowej w R* znajduje się w plikie SKRYPT_raport_statystyka_opisowa.qmd, w nim jest wykorzystywany plik z danymi 'Obesity.xlsx'. Skrypt do drugiego raportu *Analiza i weryfikacja hipotez* znajduje się w plikie SKRYPT_raport_weryfikacja_hipotez.qmd . Raporty są napisane w R.
+### Computer Time Series Analysis
+- **Reports**:
+  - `report_correspondence_analysis.pdf`: Correspondence analysis for selected real-world data. Associated script: `SCRIPT_report_correspondence_analysis.qmd`.
+  - `report_ARMA.pdf`: Real data analysis using the ARMA model. Associated script: `SCRIPT_report_ARMA.ipynb` with data from `dane_Jan_Mayen.csv`. Written in Python.
 
-## WYKORZYSTYWANE NARZĘDZIA
-**Python language**
+### Statistical Packages
+- **Reports**:
+  - `report_descriptive_statistics.pdf`: Descriptive statistics methods implemented in R. Associated script: `SCRIPT_report_descriptive_statistics.qmd` with data from `Obesity.xlsx`.
+  - `report_hipothesis_testing_in_R.pdf`: Hypothesis analysis and verification. Associated script: `SCRIPT_report_hipothesis_testing_in_R.qmd`. Written in R.
 
-Biblioteki: numpy, math, random, matplotlib.pyplot, scipy.stats, seaborn, time, csv, pandas, statsmodels
+## Tools Used
+**Python Language**
+- **Libraries**: numpy, math, random, matplotlib.pyplot, scipy.stats, seaborn, time, csv, pandas, statsmodels
 
-**R language**
+**R Language**
+- **Libraries**: ggplot2, gridExtra, readxl, dplyr, pROC
 
-Biblioteki: ggplot2, gridExtra, readxl, dplyr, pROC
+All results and analyses are presented in Polish.
+
